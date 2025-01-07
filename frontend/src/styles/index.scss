@@ -1,0 +1,21 @@
+@use 'sass:math';
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  // color-scheme: light dark;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --primary: #9b51e0;
+  --primary-hover: #884ccf;
+}
+
+@function rem($px, $base: 16) {
+  @return #{math.div($px, $base)}rem;
+}
