@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './home.module.scss';
 import { useNavigate } from 'react-router';
 import ROUTES from '../../config/routes';
+import useUserStore from '../../hooks/userStore';
 
 export default function Main() {
     const [username, setUsername] = useState('');
+    const user = useUserStore();
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -12,23 +14,40 @@ export default function Main() {
         setUsername(e.target.value);
     }
 
-    const onEnter = () => {
-        if (!username) {
+    const onEnter = async () => {
+        if (!username.trim()) {
             return;
         }
 
         setIsLoading(true);
 
-        const promise = new Promise<void>((resolve) => {
-            setTimeout(() => {
-                resolve();
-            }, 2000);
-        })
+        const response = await fetch(`http://192.168.0.129:5002/chat?username=${username}`);
 
-        promise.then(() => {
+        if (!response.ok) {
+            const errorText = await response.text();
+            alert(errorText);
             setIsLoading(false);
+            return;
+        }
+
+        const socket = new WebSocket(`ws://192.168.0.129:5002/chat?username=${username}`);
+
+        socket.onopen = () => {
+            user.setSocket(socket);
+            user.setUsername(username);
+            // socket.send(JSON.stringify({ type: 'check-username', username }));
             navigate(ROUTES.CHAT);
-        })
+        };
+
+        socket.onclose = (e) => {
+            console.log('Socket closed');
+        }
+    };
+
+    const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            onEnter();
+        }
     }
 
     return (
@@ -45,6 +64,7 @@ export default function Main() {
                         placeholder="Username"
                         value={username}
                         onChange={onUsernameChange}
+                        onKeyDown={onKeyDown}
                     />
                     <button
                         className={styles.button}

@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import styles from './chat.module.scss';
+import useUserStore from '../../hooks/userStore';
+import ROUTES from '../../config/routes';
+import { useNavigate } from 'react-router';
 
 interface Message {
     user: string;
@@ -7,20 +10,38 @@ interface Message {
 }
 
 export default function Chat() {
-    const [users, setUsers] = useState<string[]>([]);
-    const [messages, setMessages] = useState<Message[]>(Array.from({ length: 30 }, () => ({ user: 'user', text: 'Welcome to the chat' })));
+    const userStore = useUserStore();
+    //const [users, setUsers] = useState<string[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [currentMessage, setCurrentMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const socket = useRef<WebSocket | null>(null);
+    const navigate = useNavigate();
+    const isFirstRender = useRef(true);
+
+    if (userStore.socket && userStore.socket.readyState === WebSocket.OPEN) {
+        userStore.socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            setMessages(prev => [...prev, { user: data.Username, text: data.Message }]);
+
+            console.log(event.data);
+        };
+    }
 
     useEffect(() => {
-        const newUser = 'User' + Math.floor(Math.random() * 1000);
-        setUsers(prev => [...prev, newUser]);
-        setMessages(prev => [...prev, { user: '', text: `${newUser} has joined the chat` }]);
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+        if(!userStore.socket || userStore.socket.readyState !== WebSocket.OPEN){
+            navigate(ROUTES.HOME);
+            return;
+        }
 
         return () => {
-            setUsers(prev => prev.filter(user => user !== newUser));
-            setMessages(prev => [...prev, { user: '', text: `${newUser} has left the chat` }]);
-        };
+            userStore.socket?.close();
+        }
     }, []);
 
     useEffect(() => {
@@ -28,8 +49,8 @@ export default function Chat() {
     }, [messages]);
 
     const sendMessage = () => {
-        if (currentMessage.trim()) {
-            setMessages(prev => [...prev, { user: 'Me', text: currentMessage }]);
+        if (currentMessage.trim() && userStore.socket?.readyState === WebSocket.OPEN) {
+            userStore.socket.send(JSON.stringify({ Type: 'chat-message', Message: currentMessage }));
             setCurrentMessage('');
         }
     };
@@ -50,9 +71,9 @@ export default function Chat() {
                                 {msg.text}
                             </div>
                         ) : (
-                            <div key={index} className={`${styles.message} ${msg.user === 'Me' ? styles.me : ''}`}>
+                            <div key={index} className={`${styles.message} ${msg.user === userStore.username? styles.me : ''}`}>
                                 <div className={styles.messageBox}>
-                                    {msg.user !== 'Me' && <strong>{msg.user}: </strong>}
+                                    {msg.user !== userStore.username && <strong>{msg.user}: </strong>}
                                     {msg.text}
                                 </div>
                             </div>
@@ -65,7 +86,7 @@ export default function Chat() {
                     type="text"
                     value={currentMessage}
                     onChange={(e) => setCurrentMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                     className={styles.input}
                     placeholder="Type a message"
                 />
